@@ -62,6 +62,29 @@ go build -o wifi-chat .
 
 Run on multiple machines on the same LAN. Peers are discovered automatically.
 
+### Run on Termux (Android)
+
+1. Install Termux from F-Droid (recommended) or Google Play Store
+2. Open Termux and install Go:
+   ```bash
+   pkg update && pkg upgrade
+   pkg install golang git
+   ```
+3. Clone and build:
+   ```bash
+   git clone <repo-url> wifi-chat
+   cd wifi-chat
+   go build -o wifi-chat .
+   ```
+4. Run:
+   ```bash
+   ./wifi-chat
+   ```
+5. Make sure your phone is connected to the **same Wi-Fi network** as your desktop
+6. For the best experience, use a **landscape orientation** or a terminal emulator that supports large sizes (like Termux's own fullscreen mode)
+
+> **Note:** On some Android devices, UDP broadcast to `255.255.255.255` may not work due to WiFi firmware restrictions. The app also sends discovery packets to subnet broadcast addresses (e.g., `192.168.1.255`) and standard broadcast — one of these methods will work on most devices.
+
 ## Commands
 
 ```
@@ -104,3 +127,16 @@ The modular architecture supports adding:
 | Ctrl+L | Clear screen |
 | PgUp/PgDn | Scroll chat |
 | ↑/↓ | Scroll line |
+
+## Termux Tips
+
+- **Keyboard shortcuts**: Termux's extra keys row (Volume+Q) includes Tab, Ctrl, Alt keys useful for shortcuts like Ctrl+C (exit) and Ctrl+L (clear)
+- **Fullscreen**: Use Termux's fullscreen mode (swipe down from top) for more chat space
+- **Landscape mode**: Turn your phone sideways for a wider layout
+- **Background**: To keep the chat running when switching apps, use `tmux` or `screen`:
+  ```bash
+  pkg install tmux
+  tmux
+  ./wifi-chat
+  ```
+- **Exit cleanly**: Type `/exit` or press Ctrl+C to disconnect gracefully

@@ -16,12 +16,13 @@ const (
 )
 
 type PeerManager struct {
-	username    string
-	peers       map[string]*models.Peer
-	mu          sync.RWMutex
-	eventCh     chan models.Event
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
+	username  string
+	localPort int
+	peers     map[string]*models.Peer
+	mu        sync.RWMutex
+	eventCh   chan models.Event
+	stopCh    chan struct{}
+	wg        sync.WaitGroup
 }
 
 func NewPeerManager(username string, eventCh chan models.Event) *PeerManager {
@@ -34,6 +35,10 @@ func NewPeerManager(username string, eventCh chan models.Event) *PeerManager {
 	pm.wg.Add(1)
 	go pm.cleanupLoop()
 	return pm
+}
+
+func (pm *PeerManager) SetLocalPort(port int) {
+	pm.localPort = port
 }
 
 func (pm *PeerManager) Stop() {
@@ -99,7 +104,7 @@ func (pm *PeerManager) ConnectToPeer(peer *models.Peer) {
 	}
 
 	go func() {
-		err := ConnectToPeer(pm.username, peer, pm.eventCh)
+		err := ConnectToPeer(pm.username, pm.localPort, peer, pm.eventCh)
 		if err != nil {
 			log.Printf("connect to peer %s: %v", peer.Username, err)
 		}

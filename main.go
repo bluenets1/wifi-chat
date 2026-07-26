@@ -27,6 +27,7 @@ func main() {
 	if err := tcpServer.Start(); err != nil {
 		log.Fatalf("Failed to start TCP server: %v", err)
 	}
+	pm.SetLocalPort(tcpServer.Port())
 
 	disc := network.NewDiscovery(username, tcpServer.Port(), pm, eventCh)
 	if err := disc.Start(); err != nil {

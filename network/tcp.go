@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -108,15 +109,17 @@ func (s *TCPServer) handleConnection(conn net.Conn) {
 	defer s.wg.Done()
 	defer conn.Close()
 
-	identity, err := s.readIdentify(conn)
+	remoteUsername, remoteTCPPort, err := s.readIdentify(conn)
 	if err != nil {
 		return
 	}
 
-	peerKey := identity.IP + ":" + itoa(identity.TCPPort)
+	remoteIP := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+	peerKey := remoteIP + ":" + itoa(remoteTCPPort)
+
 	peer := s.peerManager.GetPeer(peerKey)
 	if peer == nil {
-		peer = models.NewPeer(identity.Username, identity.Hostname, identity.IP, identity.TCPPort)
+		peer = models.NewPeer(remoteUsername, "", remoteIP, remoteTCPPort)
 		s.peerManager.AddPeer(peer)
 		s.eventCh <- models.NewPeerJoinedEvent(peer)
 	}
@@ -150,25 +153,26 @@ func (s *TCPServer) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *TCPServer) readIdentify(conn net.Conn) (*models.Peer, error) {
+func (s *TCPServer) readIdentify(conn net.Conn) (string, int, error) {
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 4096), 4096)
 
 	if !scanner.Scan() {
-		return nil, fmt.Errorf("identify timeout")
+		return "", 0, fmt.Errorf("identify timeout")
 	}
 
 	var msg models.Message
 	if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
-		return nil, err
+		return "", 0, err
 	}
 
 	if msg.Type != models.MsgTypeIdentify {
-		return nil, fmt.Errorf("expected identify message")
+		return "", 0, fmt.Errorf("expected identify message")
 	}
 
-	return models.NewPeer(msg.Username, msg.Content, conn.RemoteAddr().(*net.TCPAddr).IP.String(), 0), nil
+	remoteTCPPort, _ := strconv.Atoi(msg.Content)
+	return msg.Username, remoteTCPPort, nil
 }
 
 func (s *TCPServer) handleIncomingMessage(msg models.Message, peer *models.Peer) {
@@ -185,14 +189,14 @@ func (s *TCPServer) handleIncomingMessage(msg models.Message, peer *models.Peer)
 	}
 }
 
-func ConnectToPeer(username string, peer *models.Peer, eventCh chan models.Event) error {
+func ConnectToPeer(username string, localPort int, peer *models.Peer, eventCh chan models.Event) error {
 	addr := fmt.Sprintf("%s:%d", peer.IP, peer.TCPPort)
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("connect to %s: %w", addr, err)
 	}
 
-	identMsg := models.NewMessage(username, models.MsgTypeIdentify, "")
+	identMsg := models.NewMessage(username, models.MsgTypeIdentify, itoa(localPort))
 	identMsg.ID = uuid.New().String()
 	data, _ := identMsg.ToJSON()
 	data = append(data, '\n')
@@ -212,7 +216,11 @@ func ConnectToPeer(username string, peer *models.Peer, eventCh chan models.Event
 }
 
 func handlePeerConnection(conn net.Conn, peer *models.Peer, eventCh chan models.Event) {
-	defer conn.Close()
+	defer func() {
+		peer.SetConn(nil)
+		peer.Connected = false
+		conn.Close()
+	}()
 
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 65536), 65536)
